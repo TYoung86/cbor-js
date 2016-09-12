@@ -7,3 +7,4 @@ cbor.min.js
 sauce_connect.log
 /temp
 /.idea
+*.log
