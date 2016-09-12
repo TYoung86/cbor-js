@@ -3,13 +3,7 @@ cbor-js
 
 The Concise Binary Object Representation (CBOR) data format ([RFC 7049](http://tools.ietf.org/html/rfc7049)) implemented in pure JavaScript.
 
-[![Build Status](https://api.travis-ci.org/paroga/cbor-js.png)](https://travis-ci.org/paroga/cbor-js)
-[![Coverage Status](https://coveralls.io/repos/paroga/cbor-js/badge.png?branch=master)](https://coveralls.io/r/paroga/cbor-js?branch=master)
-[![Dependency status](https://david-dm.org/paroga/cbor-js/status.png)](https://david-dm.org/paroga/cbor-js#info=dependencies&view=table)
-[![Dev Dependency Status](https://david-dm.org/paroga/cbor-js/dev-status.png)](https://david-dm.org/paroga/cbor-js#info=devDependencies&view=table)
-[![Selenium Test Status](https://saucelabs.com/buildstatus/paroga-cbor-js)](https://saucelabs.com/u/paroga-cbor-js)
-
-[![Selenium Test Status](https://saucelabs.com/browser-matrix/paroga-cbor-js.svg)](https://saucelabs.com/u/paroga-cbor-js)
+This is an unofficial branch of a CBOR implementation by Patrick Gansterer (paroga) that supports Float 16 and 32 encoding by default, implements an exact accounting buffer allocation strategy, and adds an option for allowing extraneous bytes at the end of a chunk.
 
 API
 ---
