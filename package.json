@@ -1,6 +1,6 @@
 {
   "name": "cbor-js-unofficial",
-  "version": "0.1.0-a2",
+  "version": "0.1.0-a3",
   "description": "(UNOFFICIAL BRANCH) The Concise Binary Object Representation (CBOR) data format (RFC7049) implemented in pure JavaScript.",
   "keywords": [
     "cbor"
