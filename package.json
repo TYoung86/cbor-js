@@ -1,18 +1,23 @@
 {
-  "name": "cbor",
+  "name": "cbor-unofficial",
   "version": "0.1.0",
-  "description": "The Concise Binary Object Representation (CBOR) data format (RFC7049) implemented in pure JavaScript.",
+  "description": "(UNOFFICIAL BRANCH) The Concise Binary Object Representation (CBOR) data format (RFC7049) implemented in pure JavaScript.",
   "keywords": [
     "cbor"
   ],
-  "homepage": "https://github.com/paroga/cbor-js",
-  "bugs": "https://github.com/paroga/cbor-js/issues",
+  "homepage": "https://github.com/tyoung86/cbor-js",
+  "bugs": "https://github.com/tyoung86/cbor-js/issues",
   "license": "MIT",
   "author": "Patrick Gansterer <paroga@paroga.com> (http://paroga.com/)",
+  "contributors" : [
+    {
+      "name": "Tyler Young (tyoung86)"
+    }
+  ],
   "main": "cbor.js",
   "repository": {
     "type": "git",
-    "url": "http://github.com/paroga/cbor-js.git"
+    "url": "http://github.com/tyoung86/cbor-js.git"
   },
   "scripts": {
     "test": "grunt test",
