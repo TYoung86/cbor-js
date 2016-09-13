@@ -32,10 +32,6 @@
   var singleFloatView = new Float32Array(1);
   var singleIntView = new Uint32Array(singleFloatView.buffer);
 
-  function isNumericChar(char) {
-    return char >= 48 && char <= 57;
-  }
-
   function decodeFloat16(value) {
     var exponent = (value & 0x7C00) >> 10,
       fraction = value & 0x03FF;
@@ -108,30 +104,28 @@
     var c = 0;
     for (var i = 0; i < value.length; ++i) {
       var charCode = value.charCodeAt(i);
-      if (charCode < 0x80) {
-        c += 1;
-      } else if (charCode < 0x800) {
-        c += 2;
-      } else if (charCode < 0xd800) {
-        c += 3;
-      } else {
-        ++i;
-        c += 4;
-      }
+      /* jshint laxbreak:true */
+      //noinspection CommaExpressionJS
+      c += charCode < 0x80
+        ? 1
+        : charCode < 0x800
+          ? 2
+          : charCode < 0xd800
+            ? 3
+            : (++i, 4);
+      /* jshint laxbreak:false */
     }
     return c;
   }
 
   function accountForFloat(value) {
-    var f16 = checkFloat16(value);
-    if (f16 !== false) {
-      return 3;
-    }
-    var f32 = checkFloat32(value);
-    if (f32 !== false) {
-      return 5;
-    }
-    return 9;
+    /* jshint laxbreak:true */
+    return checkFloat16(value) !== false
+      ? 3
+      : checkFloat32(value) !== false
+        ? 5
+        : 9;
+    /* jshint laxbreak:false */
   }
 
   function accountForTypeAndLength(length) {
@@ -154,24 +148,42 @@
   }
 
   function maybeIntKey(key) {
-    var isNumKey = isNumericChar(key.charCodeAt(0));
-    for (var ki = 1; isNumKey && ki < key.length; ++ki)
-      isNumKey = isNumericChar(key.charCodeAt(ki));
+    var charCode = key.charCodeAt(0);
+    var isNumKey = charCode >= 48 && charCode <= 57;
+    for (var ki = 1; isNumKey && ki < key.length; ++ki) {
+      charCode = key.charCodeAt(ki);
+      isNumKey = charCode >= 48 && charCode <= 57;
+    }
     if (isNumKey)
       key = parseInt(key, 10);
     return key;
   }
 
+  function accountForObject(value) {
+    var i, length, c = 0;
+    if (Array.isArray(value)) {
+      length = value.length;
+      c += accountForTypeAndLength(length);
+      for (i = 0; i < length; ++i)
+        c += accountForItem(value[i]);
+    } else if (value instanceof Uint8Array) {
+      c += accountForTypeAndLength(value.length);
+      c += value.length;
+    } else {
+      var keys = Object.keys(value);
+      length = keys.length;
+      c += accountForTypeAndLength(length);
+      for (i = 0; i < length; ++i) {
+        var key = maybeIntKey(keys[i]);
+        c += accountForItem(key);
+        c += accountForItem(value[key]);
+      }
+    }
+    return c;
+  }
+
   function accountForItem(value) {
-    var i;
-    var c = 0;
-    if (value === false)
-      return 1;
-    if (value === true)
-      return 1;
-    if (value === null)
-      return 1;
-    if (value === undefined)
+    if (value === false || value === true || value === null || value === undefined)
       return 1;
 
     switch (typeof value) {
@@ -188,30 +200,8 @@
 
       case "string":
         return accountForUtf8String(value);
-
-      default:
-        var length;
-        if (Array.isArray(value)) {
-          length = value.length;
-          c += accountForTypeAndLength(length);
-          for (i = 0; i < length; ++i)
-            c += accountForItem(value[i]);
-        } else if (value instanceof Uint8Array) {
-          c += accountForTypeAndLength(value.length);
-          c += value.length;
-        } else {
-          var keys = Object.keys(value);
-          length = keys.length;
-          c += accountForTypeAndLength(length);
-          for (i = 0; i < length; ++i) {
-            var key = maybeIntKey(keys[i]);
-            c += accountForItem(key);
-            c += accountForItem(value[key]);
-          }
-        }
     }
-
-    return c;
+    return accountForObject(value);
   }
 
 
@@ -219,81 +209,69 @@
     //console.log("Beginning encoding...");
     var data;
     var encodeView;
-    var lastLength = 0;
     var offset = 0;
 
-    function prepareWrite(length) {
-      //var newByteLength = data.byteLength;
-      //var requiredLength = offset + length;
-      //if (newByteLength < requiredLength)
-      //  throw new Error("Not enough space allocated during accounting pass.");
-      lastLength = length;
-      return encodeView;
-    }
-
-    function commitWrite() {
-      offset += lastLength;
-    }
-
-    function writeFloat16(value) {
-      writeUint8(0xf9);
-      prepareWrite(2).setUint16(offset, getFloat16(value));
-      commitWrite();
-    }
 
     /*
+    function writeFloat16(value) {
+      encodeView.setUint8(offset, 0xf9);
+      encodeView.setUint16(offset+1, getFloat16(value));
+      offset += 3;
+    }
     function writeFloat32(value) {
       writeUint8(0xfa);
-     prepareWrite(4).setFloat32(offset, value);
-      commitWrite();
+     encodeView.setFloat32(offset, value);
+     offset += 4;
+    }
+    function writeFloat64(value) {
+      encodeView.setUint8(offset, 0xfb);
+      encodeView.setFloat64(offset+1, value);
+      offset += 9;
     }
     */
-
-    function writeFloat64(value) {
-      writeUint8(0xfb);
-      prepareWrite(8).setFloat64(offset, value);
-      commitWrite();
-    }
 
     function writeFloat(value) {
       var f16 = checkFloat16(value);
       if (f16 !== false) {
-        writeUint8(0xf9);
-        prepareWrite(2).setUint16(offset, f16);
-        commitWrite();
+        encodeView.setUint8(offset, 0xf9);
+        encodeView.setUint16(offset+1, f16);
+        offset += 3;
         return;
       }
       var f32 = checkFloat32(value);
       if (f32 !== false) {
-        writeUint8(0xfa);
-        prepareWrite(4).setUint32(offset, f32);
-        commitWrite();
+        encodeView.setUint8(offset, 0xfa);
+        encodeView.setUint32(offset+1, f32);
+        offset += 5;
         return;
       }
       //writeUint8(0xfb);
-      writeFloat64(value);
+      //writeFloat64(value);
+
+      encodeView.setUint8(offset, 0xfb);
+      encodeView.setFloat64(offset+1, value);
+      offset += 9;
     }
 
-    function writeUint8(value) {
-      prepareWrite(1).setUint8(offset, value);
-      commitWrite();
-    }
 
     function writeUint8Array(value) {
-      var v = prepareWrite(value.length);
       for (var i = 0; i < value.length; ++i)
-        v.setUint8(offset + i, value[i]);
-      commitWrite();
+        encodeView.setUint8(offset + i, value[i]);
+      offset += value.length;
     }
 
+    /*
+    function writeUint8(value) {
+      return encodeView.setUint8(offset++, value);
+    }
     function writeUint16(value) {
-      prepareWrite(2).setUint16(offset, value);
-      commitWrite();
+      encodeView.setUint16(offset, value);
+      offset += 2;
     }
 
     function writeUint32(value) {
-      prepareWrite(4).setUint32(offset, value);
-      commitWrite();
+      encodeView.setUint32(offset, value);
+      offset += 4;
     }
 
     function writeUint64(value) {
@@ -301,25 +279,33 @@
       var high = (value - low) / POW_2_32;
       encodeView.setUint32(offset, high);
       encodeView.setUint32(offset + 4, low);
-      commitWrite();
+      offset += 8;
     }
+    */
 
     function writeTypeAndLength(type, length) {
       var typeCode = type << 5;
       if (length < 24) {
-        writeUint8(typeCode | length);
+        encodeView.setUint8(offset++, typeCode | length);
       } else if (length < 0x100) {
-        writeUint8(typeCode | 0x18);
-        writeUint8(length);
+        encodeView.setUint8(offset, typeCode | 0x18);
+        encodeView.setUint8(offset+1, length);
+        offset += 2;
       } else if (length < 0x10000) {
-        writeUint8(typeCode | 0x19);
-        writeUint16(length);
+        encodeView.setUint8(offset, typeCode | 0x19);
+        encodeView.setUint16(offset+1, length);
+        offset += 3;
       } else if (length < 0x100000000) {
-        writeUint8(typeCode | 0x1A);
-        writeUint32(length);
+        encodeView.setUint8(offset, typeCode | 0x1A);
+        encodeView.setUint32(offset+1, length);
+        offset += 5;
       } else {
-        writeUint8(typeCode | 0x1B);
-        writeUint64(length);
+        encodeView.setUint8(offset, typeCode | 0x1B);
+        var low = length % POW_2_32;
+        var high = (length - low) / POW_2_32;
+        encodeView.setUint32(offset + 1, high);
+        encodeView.setUint32(offset + 5, low);
+        offset +=9;
       }
     }
 
@@ -330,22 +316,23 @@
       //  throw new Error("Incorrect string length accounting: Can not write less bytes than characters.");
       //if (value.length < utf8len)
       //  console.log("Writing "+ value.length + " chars in "+ utf8len +" bytes\nString: "+ value);
-      var utf8data = new Uint8Array(utf8len);
-      var charIndex = 0;
+      writeTypeAndLength(3, utf8len);
       for (i = 0; i < value.length; ++i) {
         var charCode = value.charCodeAt(i);
         if (charCode < 0x80) {
           //console.log("Writing " + charCode.toString(16) + " in 1 byte");
-          utf8data[charIndex++] = charCode;
+          encodeView.setUint8(offset++, charCode);
         } else if (charCode < 0x800) {
           //console.log("Writing " + charCode.toString(16) + " in 2 bytes");
-          utf8data[charIndex++] = (0xc0 | charCode >> 6);
-          utf8data[charIndex++] = (0x80 | charCode & 0x3f);
+          encodeView.setUint8(offset, 0xc0 | charCode >> 6);
+          encodeView.setUint8(offset+1, 0x80 | charCode & 0x3f);
+          offset += 2;
         } else if (charCode < 0xd800) {
           //console.log("Writing " + charCode.toString(16) + " in 3 bytes");
-          utf8data[charIndex++] = (0xe0 | charCode >> 12);
-          utf8data[charIndex++] = (0x80 | (charCode >> 6) & 0x3f);
-          utf8data[charIndex++] = (0x80 | charCode & 0x3f);
+          encodeView.setUint8(offset, 0xe0 | charCode >> 12);
+          encodeView.setUint8(offset+1, 0x80 | (charCode >> 6) & 0x3f);
+          encodeView.setUint8(offset+2, 0x80 | charCode & 0x3f);
+          offset += 3;
         } else {
           var charCode2 = value.charCodeAt(++i);
           //console.log("Writing " + charCode.toString(16) + " and "+charCode2.toString(16)+ " in 4 bytes");
@@ -353,41 +340,58 @@
           charCode |= charCode2 & 0x3ff;
           charCode += 0x10000;
 
-          utf8data[charIndex++] = (0xf0 | charCode >> 18);
-          utf8data[charIndex++] = (0x80 | (charCode >> 12) & 0x3f);
-          utf8data[charIndex++] = (0x80 | (charCode >> 6) & 0x3f);
-          utf8data[charIndex++] = (0x80 | charCode & 0x3f);
+          encodeView.setUint8(offset, 0xf0 | charCode >> 18);
+          encodeView.setUint8(offset+1, 0x80 | (charCode >> 12) & 0x3f);
+          encodeView.setUint8(offset+2, 0x80 | (charCode >> 6) & 0x3f);
+          encodeView.setUint8(offset+3, 0x80 | charCode & 0x3f);
+          offset += 4;
         }
       }
       //if (charIndex != utf8len)
       //  throw new Error("Incorrect string length accounting: " +
       //    charIndex + " vs " + utf8len + ", difference of " + (utf8len - charIndex));
-      writeTypeAndLength(3, utf8len);
-      return writeUint8Array(utf8data);
+      //return writeUint8Array(utf8data);
     }
 
     function encodeItem(value) {
       var i;
 
-      if (value === false)
-        return writeUint8(0xf4);
-      if (value === true)
-        return writeUint8(0xf5);
-      if (value === null)
-        return writeUint8(0xf6);
-      if (value === undefined)
-        return writeUint8(0xf7);
-
+      if (value === false) {
+        encodeView.setUint8(offset++, 0xf4);
+        return;
+      }
+      if (value === true) {
+        encodeView.setUint8(offset++, 0xf5);
+        return;
+      }
+      if (value === null) {
+        encodeView.setUint8(offset++, 0xf6);
+        return;
+      }
+      if (value === undefined) {
+        encodeView.setUint8(offset++, 0xf7);
+        return;
+      }
       switch (typeof value) {
         case "number":
-          if (isNaN(value))
-            return writeFloat16(value);
+          if (isNaN(value)) {
+            encodeView.setUint8(offset, 0xf9);
+            encodeView.setUint16(offset + 1, getFloat16(value));
+            offset += 3;
+            return;
+          }
           if (Math.floor(value) === value) {
             if (0 <= value && value <= POW_2_53)
               return writeTypeAndLength(0, value);
             if (-POW_2_53 <= value && value < 0)
               return writeTypeAndLength(1, -(value + 1));
           }
+           /*
+          if (value>>>0 === value)
+            return writeTypeAndLength(0, value);
+          if ((value|0) === value)
+            return writeTypeAndLength(1, -(value + 1));
+        */
           //writeUint8(0xfb);
           //return writeFloat64(value);
           return writeFloat(value);
@@ -726,8 +730,7 @@
         case 5:
           var retObject = {};
           for (i = 0; i < length || length < 0 && !readBreak(); ++i) {
-            var key = decodeItem();
-            retObject[key] = decodeItem();
+            retObject[decodeItem()] = decodeItem();
           }
           return retObject;
         case 6:
