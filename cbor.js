@@ -334,9 +334,8 @@
           encodeView.setUint8(offset+2, 0x80 | charCode & 0x3f);
           offset += 3;
         } else {
-          var charCode2 = value.charCodeAt(++i);
           //console.log("Writing " + charCode.toString(16) + " and "+charCode2.toString(16)+ " in 4 bytes");
-          charCode = (((charCode & 0x3ff) << 10) | (charCode2 & 0x3ff)) + 0x10000;
+          charCode = (((charCode & 0x3ff) << 10) | (value.charCodeAt(++i) & 0x3ff)) + 0x10000;
 
           encodeView.setUint8(offset, 0xf0 | charCode >> 18);
           encodeView.setUint8(offset+1, 0x80 | (charCode >> 12) & 0x3f);
