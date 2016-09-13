@@ -317,7 +317,7 @@
       //if (value.length < utf8len)
       //  console.log("Writing "+ value.length + " chars in "+ utf8len +" bytes\nString: "+ value);
       writeTypeAndLength(3, utf8len);
-      for (i = 0; i < value.length; ++i) {
+      for (var i = 0; i < value.length; ++i) {
         var charCode = value.charCodeAt(i);
         if (charCode < 0x80) {
           //console.log("Writing " + charCode.toString(16) + " in 1 byte");
@@ -336,9 +336,7 @@
         } else {
           var charCode2 = value.charCodeAt(++i);
           //console.log("Writing " + charCode.toString(16) + " and "+charCode2.toString(16)+ " in 4 bytes");
-          charCode = (charCode & 0x3ff) << 10;
-          charCode |= charCode2 & 0x3ff;
-          charCode += 0x10000;
+          charCode = (((charCode & 0x3ff) << 10) | (charCode2 & 0x3ff)) + 0x10000;
 
           encodeView.setUint8(offset, 0xf0 | charCode >> 18);
           encodeView.setUint8(offset+1, 0x80 | (charCode >> 12) & 0x3f);
@@ -372,53 +370,42 @@
         encodeView.setUint8(offset++, 0xf7);
         return;
       }
-      switch (typeof value) {
-        case "number":
-          if (isNaN(value)) {
-            encodeView.setUint8(offset, 0xf9);
-            encodeView.setUint16(offset + 1, getFloat16(value));
-            offset += 3;
-            return;
-          }
-          if (Math.floor(value) === value) {
-            if (0 <= value && value <= POW_2_53)
-              return writeTypeAndLength(0, value);
-            if (-POW_2_53 <= value && value < 0)
-              return writeTypeAndLength(1, -(value + 1));
-          }
-           /*
-          if (value>>>0 === value)
+      var valueType = typeof value;
+      if (valueType === "number") {
+        if (isNaN(value)) {
+          encodeView.setUint8(offset, 0xf9);
+          encodeView.setUint16(offset + 1, getFloat16(value));
+          offset += 3;
+          return;
+        }
+        if (Math.floor(value) === value) {
+          if (0 <= value && value <= POW_2_53)
             return writeTypeAndLength(0, value);
-          if ((value|0) === value)
+          if (-POW_2_53 <= value && value < 0)
             return writeTypeAndLength(1, -(value + 1));
-        */
-          //writeUint8(0xfb);
-          //return writeFloat64(value);
-          return writeFloat(value);
-
-        case "string":
-          return writeUtf8String(value);
-
-        default:
-          var length;
-          if (Array.isArray(value)) {
-            length = value.length;
-            writeTypeAndLength(4, length);
-            for (i = 0; i < length; ++i)
-              encodeItem(value[i]);
-          } else if (value instanceof Uint8Array) {
-            writeTypeAndLength(2, value.length);
-            writeUint8Array(value);
-          } else {
-            var keys = Object.keys(value);
-            length = keys.length;
-            writeTypeAndLength(5, length);
-            for (i = 0; i < length; ++i) {
-              var key = maybeIntKey(keys[i]);
-              encodeItem(key);
-              encodeItem(value[key]);
-            }
+        }
+        return writeFloat(value);
+      } else if (valueType === "string") {
+        return writeUtf8String(value);
+      } else {
+        var length = value.length;
+        if (Array.isArray(value)) {
+          writeTypeAndLength(4, length);
+          for (i = 0; i < length; ++i)
+            encodeItem(value[i]);
+        } else if (value instanceof Uint8Array) {
+          writeTypeAndLength(2, length);
+          writeUint8Array(value);
+        } else {
+          var keys = Object.keys(value);
+          var keyLength = keys.length;
+          writeTypeAndLength(5, keyLength);
+          for (i = 0; i < keyLength; ++i) {
+            var key = maybeIntKey(keys[i]);
+            encodeItem(key);
+            encodeItem(value[key]);
           }
+        }
       }
     }
 
@@ -721,11 +708,11 @@
             retArray = [];
             while (!readBreak())
               retArray.push(decodeItem());
-          } else {
-            retArray = new Array(length);
-            for (i = 0; i < length; ++i)
-              retArray[i] = decodeItem();
+            return retArray;
           }
+          retArray = new Array(length);
+          for (i = 0; i < length; ++i)
+            retArray[i] = decodeItem();
           return retArray;
         case 5:
           var retObject = {};
