@@ -309,6 +309,7 @@
       }
     }
 
+    // profiler says optimize this
     function writeUtf8String(value) {
       var utf8len = getByteLengthOfUtf8String(value);
       //console.log("Writing string "+value+" at offset "+offset+" in "+utf8len+" bytes");
